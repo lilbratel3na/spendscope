@@ -1,0 +1,13 @@
+name = "spendscope-x402"
+main = "src/index.ts"
+compatibility_date = "2026-10-16"
+
+[vars]
+FACILITATOR_URL = "https://x402.org/facilitator"
+# Set PAY_TO with `wrangler secret put PAY_TO` before deployment.
+# Use a Base Sepolia address for testing; do not use a mainnet wallet until intentionally switching networks.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "spendscope-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
