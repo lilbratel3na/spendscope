@@ -16,7 +16,7 @@ SpendScope controls only spends whose workflow calls its reservation API and hon
 Amounts are decimal strings, stored as integer micros (6 decimals) to avoid floating point errors. Task token hashes are stored, not raw tokens.
 
 ## x402 / PayBox
-This service uses `@x402/hono` and the official x402 EVM exact scheme on Base Sepolia for development. Each API call costs $0.001 in test USDC through x402. The x402 fee is a service fee, separate from the task's tracked spending. The free `/health`, `/`, and `/openapi.json` endpoints are for discovery/health checks.
+This service uses `@x402/hono` and the official x402 EVM exact scheme on Base Sepolia for development. Only "POST /v1/tasks" is protected by x402 and configured to require 0.001 USDC on Base Sepolia testnet. Other API routes do not charge an x402 fee. No payment or settlement has been verified end-to-end. The x402 fee is a service fee, separate from the task's tracked spending. The free `/health`, `/`, and `/openapi.json` endpoints are for discovery/health checks.
 
 Before deployment:
 - Create a Cloudflare account (Workers Free is sufficient for a small demo).
