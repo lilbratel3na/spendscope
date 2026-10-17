@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test *.test.mjs",
+    "test": "vitest run",
     "db:local": "wrangler d1 execute spendscope-db --local --file=./schema.sql",
     "db:remote": "wrangler d1 execute spendscope-db --remote --file=./schema.sql"
   },
