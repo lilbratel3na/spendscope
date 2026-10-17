@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { parseMicros, formatUnits } from "../ ./money.js.";
-
+import { parseMicros, formatUnits } from "./money.js";
 test("parses decimal strings exactly", () => {
   assert.equal(parseMicros("2"), 2_000_000);
   assert.equal(parseMicros("0.75"), 750_000);
