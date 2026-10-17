@@ -199,43 +199,87 @@ app.post("/v1/tasks/:id/reservations", async c => {
   return c.json({ decision: "ALLOW", reservationId, ...(fresh ? state(fresh) : {}) }, 201);
 });
 
-  // Fail closed until server-side payment verification exists.
+  
+async function changeReservation(
+  c: any,
+  targetStatus: "settled" | "released"
+) {
+  const taskId = c.req.param("id");
+  const reservationId = c.req.param("reservationId");
+
+  const t = await authorizedTask(c, taskId);
+  if (!t) {
+    return c.json({ error: "unauthorized_or_unknown_task" }, 401);
+  }
+
+  // Fail closed until payment can be independently verified server-side.
   if (targetStatus === "settled") {
     return c.json({
       error: "payment_verification_unavailable",
-      detail: "Settlement is disabled until server-side payment verification is configured."
+      detail:
+        "Settlement is disabled until server-side payment verification is configured."
     }, 503);
-  } {
-  const taskId = c.req.param("id");
-  const reservationId = c.req.param("reservationId");
-  const t = await authorizedTask(c, taskId);
-  if (!t) return c.json({ error: "unauthorized_or_unknown_task" }, 401);
-  const body = await c.req.json().catch(() => ({})) as any;
-  const confirmationRef = typeof body?.confirmationRef === "string" ? body.confirmationRef.slice(0, 200) : null;
-  if (targetStatus === "settled" && !confirmationRef)
-    return c.json({ error: "confirmation_ref_required" }, 400);
-  const reservation = await c.env.DB.prepare("SELECT * FROM reservations WHERE reservation_id = ? AND task_id = ? AND status = 'reserved'")
-    .bind(reservationId, taskId).first() as any;
-  if (!reservation) return c.json({ error: "reservation_not_pending" }, 409);
-  // Atomic single statement: state changes only if reservation is still pending.
+  }
+
+  const reservation = await c.env.DB.prepare(
+    "SELECT * FROM reservations WHERE reservation_id = ? AND task_id = ? AND status = 'reserved'"
+  )
+    .bind(reservationId, taskId)
+    .first() as any;
+
+  if (!reservation) {
+    return c.json({ error: "reservation_not_pending" }, 409);
+  }
+
   const results = await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE reservations SET status = ?, confirmation_ref = ?, updated_at = CURRENT_TIMESTAMP WHERE reservation_id = ? AND task_id = ? AND status = 'reserved' AND EXISTS (SELECT 1 FROM tasks WHERE task_id = ? AND reserved_micros >= (SELECT amount_micros FROM reservations WHERE reservation_id = ? AND task_id = ?))")
-      .bind(targetStatus, confirmationRef, reservationId, taskId, taskId, reservationId, taskId),
-    c.env.DB.prepare(targetStatus === "settled"
-      ? "UPDATE tasks SET reserved_micros = reserved_micros - ?, spent_micros = spent_micros + ? WHERE task_id = ? AND reserved_micros >= ? AND changes() = 1"
-      : "UPDATE tasks SET reserved_micros = reserved_micros - ? WHERE task_id = ? AND reserved_micros >= ? AND changes() = 1")
-      .bind(...(targetStatus === "settled" ? [reservation.amount_micros, reservation.amount_micros, taskId, reservation.amount_micros] : [reservation.amount_micros, taskId, reservation.amount_micros]))
+    c.env.DB.prepare(
+      "UPDATE reservations SET status = 'released', updated_at = CURRENT_TIMESTAMP WHERE reservation_id = ? AND task_id = ? AND status = 'reserved' AND EXISTS (SELECT 1 FROM tasks WHERE task_id = ? AND reserved_micros >= (SELECT amount_micros FROM reservations WHERE reservation_id = ? AND task_id = ?))"
+    ).bind(
+      reservationId,
+      taskId,
+      taskId,
+      reservationId,
+      taskId
+    ),
+
+    c.env.DB.prepare(
+      "UPDATE tasks SET reserved_micros = reserved_micros - ? WHERE task_id = ? AND reserved_micros >= ? AND changes() = 1"
+    ).bind(
+      reservation.amount_micros,
+      taskId,
+      reservation.amount_micros
+    )
   ]);
-  if (!results[0].meta.changes || !results[1].meta.changes) return c.json({ error: "reservation_transition_conflict" }, 409);
+
+  if (!results[0]?.meta?.changes || !results[1]?.meta?.changes) {
+    return c.json({ error: "reservation_transition_conflict" }, 409);
+  }
+
   const fresh = await authorizedTask(c, taskId);
-  return c.json({ ok: true, status: targetStatus, reservationId, ...(fresh ? state(fresh) : {}) });
+
+  return c.json({
+    ok: true,
+    status: "released",
+    reservationId,
+    ...(fresh ? state(fresh) : {})
+  });
 }
-app.post("/v1/tasks/:id/reservations/:reservationId/settle", c => changeReservation(c, "settled"));
-app.post("/v1/tasks/:id/reservations/:reservationId/release", c => changeReservation(c, "released"));
+
+app.post(
+  "/v1/tasks/:id/reservations/:reservationId/settle",
+  c => changeReservation(c, "settled")
+);
+
+app.post(
+  "/v1/tasks/:id/reservations/:reservationId/release",
+  c => changeReservation(c, "released")
+);
 
 app.notFound(c => c.json({ error: "not_found" }, 404));
+
 app.onError((err, c) => {
   console.error("SpendScope error", err);
   return c.json({ error: "internal_error" }, 500);
 });
+
 export default app;
