@@ -199,7 +199,13 @@ app.post("/v1/tasks/:id/reservations", async c => {
   return c.json({ decision: "ALLOW", reservationId, ...(fresh ? state(fresh) : {}) }, 201);
 });
 
-async function changeReservation(c: any, targetStatus: "settled" | "released") {
+  // Fail closed until server-side payment verification exists.
+  if (targetStatus === "settled") {
+    return c.json({
+      error: "payment_verification_unavailable",
+      detail: "Settlement is disabled until server-side payment verification is configured."
+    }, 503);
+  } {
   const taskId = c.req.param("id");
   const reservationId = c.req.param("reservationId");
   const t = await authorizedTask(c, taskId);
