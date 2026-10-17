@@ -28,4 +28,24 @@ describe("SpendScope Worker API", () => {
       "application/json",
     );
   });
+  it("does not require x402 payment for reservation routes", async () => {
+    const response = await worker.request(
+      "/v1/tasks/test-task-id/reservations",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          amount: "1",
+          currency: "USDC",
+          reservationId: "test-reservation-001",
+        }),
+      },
+      env,
+    );
+
+    expect(response.status).toBe(401);
+    expect(await response.json()).toEqual({
+      error: "unauthorized_or_unknown_task",
+    });
+  });
 });
