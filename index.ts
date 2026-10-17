@@ -43,7 +43,7 @@ app.get("/openapi.json", c => c.json({
 // compatible discovery catalogs. Catalog inclusion still depends on the facilitator
 // and on a client echoing the discovery extension in its paid request.
 app.use("*", async (c, next) => {
-  if (c.req.path === "/health" || c.req.path === "/" || c.req.path === "/openapi.json") return next();
+  if (c.req.method !== "POST" || c.req.path !== "/v1/tasks") return next();
   if (!c.env.PAY_TO) return c.json({ error: "server_not_configured", detail: "Set PAY_TO before enabling paid routes." }, 503);
   const origin = new URL(c.req.url).origin;
   const facilitator = new HTTPFacilitatorClient({ url: c.env.FACILITATOR_URL || "https://x402.org/facilitator" });
