@@ -5,40 +5,43 @@ import worker from "./index";
 import { sha256Hex } from "./money.js";
 
 describe("SpendScope Worker API", () => {
-  beforeAll(async () => {
-    await env.DB.exec(`
-      CREATE TABLE IF NOT EXISTS tasks (
-        task_id TEXT PRIMARY KEY,
-        token_hash TEXT NOT NULL,
-        currency TEXT NOT NULL,
-        budget_micros INTEGER NOT NULL CHECK (budget_micros > 0),
-        spent_micros INTEGER NOT NULL DEFAULT 0 CHECK (spent_micros >= 0),
-        reserved_micros INTEGER NOT NULL DEFAULT 0 CHECK (reserved_micros >= 0),
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        CHECK (spent_micros + reserved_micros <= budget_micros)
-      )
-    `);
+  
+beforeAll(async () => {
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS tasks (
+      task_id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL,
+      currency TEXT NOT NULL,
+      budget_micros INTEGER NOT NULL CHECK (budget_micros > 0),
+      spent_micros INTEGER NOT NULL DEFAULT 0 CHECK (spent_micros >= 0),
+      reserved_micros INTEGER NOT NULL DEFAULT 0 CHECK (reserved_micros >= 0),
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      CHECK (spent_micros + reserved_micros <= budget_micros)
+    )
+  `).run();
 
-    await env.DB.exec(`
-      CREATE TABLE IF NOT EXISTS reservations (
-        reservation_id TEXT PRIMARY KEY,
-        task_id TEXT NOT NULL REFERENCES tasks(task_id),
-        amount_micros INTEGER NOT NULL CHECK (amount_micros > 0),
-        status TEXT NOT NULL CHECK (
-          status IN ('reserved', 'settled', 'released')
-        ),
-        confirmation_ref TEXT,
-        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS reservations (
+      reservation_id TEXT PRIMARY KEY,
+      task_id TEXT NOT NULL REFERENCES tasks(task_id),
+      amount_micros INTEGER NOT NULL CHECK (amount_micros > 0),
+      status TEXT NOT NULL CHECK (
+        status IN ('reserved', 'settled', 'released')
+      ),
+      confirmation_ref TEXT,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run();
 
-    await env.DB.exec(`
-      CREATE INDEX IF NOT EXISTS reservations_task_id_idx
-      ON reservations(task_id)
-    `);
-  });
+  await env.DB.prepare(`
+    CREATE INDEX IF NOT EXISTS reservations_task_id_idx
+    ON reservations(task_id)
+  `).run();
+});
 
+
+    
   it("returns healthy status", async () => {
     const response = await worker.request("/health", {}, env);
     expect(response.status).toBe(200);
